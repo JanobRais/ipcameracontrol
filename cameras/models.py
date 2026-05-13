@@ -11,6 +11,7 @@ class Camera(models.Model):
     port = models.PositiveIntegerField(default=554, verbose_name="Port")
     resolution = models.CharField(max_length=20, default='1920x1080')
     fps = models.PositiveIntegerField(default=25)
+    audio = models.BooleanField(default=False, verbose_name="Ovoz")
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -38,6 +39,7 @@ class Camera(models.Model):
             "rtsp": f"rtsp://{self.ip}:{self.port}",
             "resolution": self.resolution,
             "fps": self.fps,
+            "audio": self.audio,
             "status": "live" if is_live else "stopped",
             "bitrate": 0,
             "uptime": "—",

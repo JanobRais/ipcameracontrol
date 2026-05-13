@@ -125,6 +125,8 @@ def camera_detail(request, pk):
             cam.port = int(body.get('port', cam.port))
             cam.resolution = body.get('resolution', cam.resolution)
             cam.fps = int(body.get('fps', cam.fps))
+            if 'audio' in body:
+                cam.audio = bool(body['audio'])
             cam.save()
 
             is_live = False
@@ -171,6 +173,27 @@ def camera_stop(request, pk):
         return JsonResponse({'error': 'Topilmadi'}, status=404)
     ok, msg = stream_manager.stop_stream(cam)
     return JsonResponse({'ok': ok, 'msg': msg, 'status': 'stopped'})
+
+
+# ─── Audio toggle ────────────────────────────────────────────────────────────
+
+@csrf_exempt
+@require_http_methods(['POST'])
+def camera_toggle_audio(request, pk):
+    err = _require_auth(request)
+    if err:
+        return err
+    try:
+        cam = Camera.objects.get(pk=pk)
+    except Camera.DoesNotExist:
+        return JsonResponse({'error': 'Topilmadi'}, status=404)
+    cam.audio = not cam.audio
+    cam.save()
+    was_live = stream_manager.is_alive(cam.id)
+    if was_live:
+        stream_manager.stop_stream(cam)
+        stream_manager.start_stream(cam)
+    return JsonResponse(cam.to_dict(is_live=was_live))
 
 
 # ─── FFmpeg logs ──────────────────────────────────────────────────────────────

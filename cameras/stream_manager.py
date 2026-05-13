@@ -42,7 +42,7 @@ def start_stream(camera) -> tuple[bool, str]:
         '-vsync', '0',
         '-copyts',
         '-vcodec', 'copy',
-        '-acodec', 'aac',
+        *(['-acodec', 'aac'] if getattr(camera, 'audio', False) else ['-an']),
         '-hls_time', '10',
         '-hls_list_size', '10',
         '-start_number', '0',

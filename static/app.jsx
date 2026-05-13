@@ -162,7 +162,10 @@ function CameraTile({ camera, onOpen }) {
           <div className="tile__name">{camera.name}</div>
           <div className="tile__loc">{camera.location}</div>
         </div>
-        <svg className="tile__chev" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 6l6 6-6 6"/></svg>
+        <div style={{textAlign:'right',fontSize:'0.72rem',color:'var(--text-2)',lineHeight:1.4}}>
+          <div style={{fontVariantNumeric:'tabular-nums'}}>{now.toLocaleTimeString('uz-UZ',{hour12:false})}</div>
+          <div>{now.toLocaleDateString('uz-UZ')}</div>
+        </div>
       </div>
     </button>
   );
@@ -197,7 +200,7 @@ function SingleView({ camera, cameras, onBack, onSwitch }) {
       <div className="single__strip">
         <div className="strip-label">Boshqa kameralar</div>
         <div className="strip-row">
-          {cameras.filter(c=>c.id!==camera.id).slice(0,8).map(c=>(
+          {cameras.filter(c=>c.id!==camera.id && c.status==='live').slice(0,8).map(c=>(
             <button key={c.id} className="strip-tile" onClick={()=>onSwitch(c)}>
               <div className="strip-tile__video"><StreamCanvas camera={c} mini/></div>
               <div className="strip-tile__name">{c.name}</div>
@@ -209,14 +212,29 @@ function SingleView({ camera, cameras, onBack, onSwitch }) {
   );
 }
 
+// ============ HASH ROUTING ============
+function useHashCamId() {
+  const get = () => {
+    const m = window.location.hash.match(/^#cam-(\d+)$/);
+    return m ? parseInt(m[1]) : null;
+  };
+  const [camId, setCamId] = useState(get);
+  useEffect(() => {
+    const handler = () => setCamId(get());
+    window.addEventListener('hashchange', handler);
+    return () => window.removeEventListener('hashchange', handler);
+  }, []);
+  const set = (id) => { window.location.hash = id ? `cam-${id}` : ''; };
+  return [camId, set];
+}
+
 // ======================================================================
 // PUBLIC APP  —  faqat viewer, sidebar yo'q
 // ======================================================================
 function PublicApp() {
   const [cameras, setCameras] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [focused, setFocused] = useState(null);
-  const [filter, setFilter] = useState('all');
+  const [hashCamId, setHashCamId] = useHashCamId();
   const [query, setQuery] = useState('');
 
   useEffect(() => {
@@ -226,12 +244,12 @@ function PublicApp() {
     return () => clearInterval(t);
   }, []);
 
-  const liveCount = cameras.filter(c=>c.status==='live').length;
-  const offlineCount = cameras.length - liveCount;
+  const focused = cameras.find(c => c.id === hashCamId) || null;
 
-  const visible = cameras.filter(c => {
-    if (filter==='live' && c.status!=='live') return false;
-    if (filter==='offline' && c.status==='live') return false;
+  const liveCameras = cameras.filter(c => c.status === 'live');
+  const liveCount = liveCameras.length;
+
+  const visible = liveCameras.filter(c => {
     if (query && !(`${c.name} ${c.location}`.toLowerCase().includes(query.toLowerCase()))) return false;
     return true;
   });
@@ -239,7 +257,7 @@ function PublicApp() {
   if (focused) {
     return (
       <div style={{minHeight:'100vh', background:'var(--bg)'}}>
-        <SingleView camera={focused} cameras={cameras} onBack={()=>setFocused(null)} onSwitch={c=>setFocused(c)}/>
+        <SingleView camera={focused} cameras={cameras} onBack={()=>setHashCamId(null)} onSwitch={c=>setHashCamId(c.id)}/>
       </div>
     );
   }
@@ -258,23 +276,13 @@ function PublicApp() {
           <span className="logo__name">Camlive</span>
         </div>
         <div style={{display:'flex',alignItems:'center',gap:'16px'}}>
-          <div className="kpi-inline"><span className="dot dot--live"/> {liveCount} jonli</div>
-          <div className="kpi-inline" style={{color:'var(--text-2)'}}>{offlineCount} faolsiz</div>
+          <div className="kpi-inline"><span className="dot dot--live"/> {liveCount} jonli efir</div>
         </div>
       </header>
 
       {/* Content */}
       <div style={{maxWidth:'1400px', margin:'0 auto', padding:'2rem'}}>
         <div className="toolbar" style={{marginBottom:'1.5rem'}}>
-          <div className="seg">
-            {[
-              {k:'all',   l:`Hammasi · ${cameras.length}`},
-              {k:'live',  l:`Jonli · ${liveCount}`},
-              {k:'offline',l:`Faolsiz · ${offlineCount}`},
-            ].map(o=>(
-              <button key={o.k} className={'seg__btn'+(filter===o.k?' is-on':'')} onClick={()=>setFilter(o.k)}>{o.l}</button>
-            ))}
-          </div>
           <div className="search">
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
             <input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Nomi yoki joylashuv bo'yicha qidirish"/>
@@ -285,7 +293,7 @@ function PublicApp() {
           <div className="empty">Yuklanmoqda...</div>
         ) : (
           <div className="grid g-cols-auto">
-            {visible.map(c=><CameraTile key={c.id} camera={c} onOpen={setFocused}/>)}
+            {visible.map(c=><CameraTile key={c.id} camera={c} onOpen={c=>setHashCamId(c.id)}/>)}
             {visible.length===0 && <div className="empty">Mos kelmadi.</div>}
           </div>
         )}
@@ -485,6 +493,15 @@ function AdminDashboard({ cameras, setCameras, openEditor, openAdd }) {
   const [loading, setLoading] = useState({});
   const [logsCamera, setLogsCamera] = useState(null);
 
+  const toggleAudio = async (cam) => {
+    setL(cam.id, 'audio');
+    try {
+      const d = await apiFetch(`/api/cameras/${cam.id}/toggle-audio/`, { method: 'POST' });
+      setCameras(cs => cs.map(c => c.id === cam.id ? { ...c, audio: d.audio } : c));
+    } catch(e) { alert('Xato: ' + e.message); }
+    finally { setL(cam.id, null); }
+  };
+
   const toggle = id => { const n=new Set(selected); n.has(id)?n.delete(id):n.add(id); setSelected(n); };
   const setL = (id,v) => setLoading(l=>({...l,[id]:v}));
 
@@ -549,7 +566,7 @@ function AdminDashboard({ cameras, setCameras, openEditor, openAdd }) {
           <thead>
             <tr>
               <th style={{width:36}}><input type="checkbox" checked={selected.size===visible.length&&visible.length>0} onChange={e=>setSelected(e.target.checked?new Set(visible.map(c=>c.id)):new Set())}/></th>
-              <th>Kamera</th><th>IP / Port</th><th>Sifat</th><th>Status</th><th style={{width:220}}>Amal</th>
+              <th>Kamera</th><th>IP / Port</th><th>Sifat</th><th>Status</th><th>Ovoz</th><th style={{width:220}}>Amal</th>
             </tr>
           </thead>
           <tbody>
@@ -568,6 +585,20 @@ function AdminDashboard({ cameras, setCameras, openEditor, openAdd }) {
                 <td><code className="rtsp">{c.rtsp}</code></td>
                 <td>{c.resolution} <span className="muted">/ {c.fps}fps</span></td>
                 <td><StatusBadge status={c.status}/></td>
+                <td>
+                  <button
+                    className={'act' + (c.audio ? ' act--start' : '')}
+                    disabled={!!loading[c.id]}
+                    onClick={() => toggleAudio(c)}
+                    title={c.audio ? 'Ovoz yoqilgan — o\'chirish' : 'Ovoz o\'chirilgan — yoqish'}
+                  >
+                    {c.audio
+                      ? <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+                      : <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 5L6 9H2v6h4l5 4V5z"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>
+                    }
+                    {loading[c.id]==='audio' ? '...' : (c.audio ? 'On' : 'Off')}
+                  </button>
+                </td>
                 <td>
                   <div className="actions">
                     {c.status==='live'
@@ -603,7 +634,10 @@ function AdminApp() {
 
   const [currentUser, setCurrentUser] = useState(null);
   const [authChecked, setAuthChecked] = useState(false);
-  const [adminView, setAdminView] = useState('cameras'); // cameras | viewer
+  const [adminView, setAdminView] = useState(() => {
+    const h = window.location.hash.replace('#', '');
+    return (h === 'cameras' || h === 'viewer') ? h : 'cameras';
+  });
   const [cameras, setCameras] = useState([]);
   const [loadingCams, setLoadingCams] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
@@ -665,7 +699,7 @@ function AdminApp() {
             { id:'cameras', label:'Kameralar', badge:liveCount, icon:<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8"><rect x="3" y="6" width="13" height="12" rx="2"/><path d="M16 10l5-3v10l-5-3"/></svg> },
             { id:'viewer',  label:'Jonli efir', icon:<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg> },
           ].map(item=>(
-            <button key={item.id} className={'nav__item'+(adminView===item.id?' is-on':'')} onClick={()=>setAdminView(item.id)} title={item.label}>
+            <button key={item.id} className={'nav__item'+(adminView===item.id?' is-on':'')} onClick={()=>{ setAdminView(item.id); window.location.hash=item.id; }} title={item.label}>
               <span className="nav__icon">{item.icon}</span>
               {tweaks.sidebarStyle==='labeled' && <span className="nav__label">{item.label}</span>}
               {item.badge!=null && tweaks.sidebarStyle==='labeled' && <span className="nav__badge">{item.badge}</span>}
