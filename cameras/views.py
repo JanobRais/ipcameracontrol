@@ -77,7 +77,7 @@ def cameras_list(request):
                 location=body.get('location', ''),
                 cam_username=body['cam_username'],
                 cam_password=body['cam_password'],
-                ip=body['ip'],
+                ip=body['ip'].strip(),
                 port=int(body['port']),
                 resolution=body.get('resolution', '1920x1080'),
                 fps=int(body.get('fps', 25)),
@@ -143,6 +143,61 @@ def camera_detail(request, pk):
         return JsonResponse({'error': 'Method not allowed'}, status=405)
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
+
+
+# ─── Camera update / delete (POST, Nginx PUT/DELETE blokini chetlab o'tish) ───
+
+@csrf_exempt
+@require_http_methods(['POST'])
+def camera_update(request, pk):
+    err = _require_auth(request)
+    if err:
+        return err
+    try:
+        cam = Camera.objects.get(pk=pk)
+    except Camera.DoesNotExist:
+        return JsonResponse({'error': 'Topilmadi'}, status=404)
+    try:
+        body = json.loads(request.body)
+        was_live = stream_manager.is_alive(cam.id)
+        if was_live:
+            stream_manager.stop_stream(cam)
+
+        cam.name = body.get('name', cam.name)
+        cam.location = body.get('location', cam.location)
+        cam.cam_username = body.get('cam_username', cam.cam_username)
+        if body.get('cam_password'):
+            cam.cam_password = body['cam_password']
+        cam.ip = body.get('ip', cam.ip).strip()
+        cam.port = int(body.get('port', cam.port))
+        cam.resolution = body.get('resolution', cam.resolution)
+        cam.fps = int(body.get('fps', cam.fps))
+        if 'audio' in body:
+            cam.audio = bool(body['audio'])
+        cam.save()
+
+        is_live = False
+        if was_live:
+            ok, _ = stream_manager.start_stream(cam)
+            is_live = ok
+        return JsonResponse(cam.to_dict(is_live=is_live))
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@csrf_exempt
+@require_http_methods(['POST'])
+def camera_delete(request, pk):
+    err = _require_auth(request)
+    if err:
+        return err
+    try:
+        cam = Camera.objects.get(pk=pk)
+    except Camera.DoesNotExist:
+        return JsonResponse({'error': 'Topilmadi'}, status=404)
+    stream_manager.stop_stream(cam)
+    cam.delete()
+    return JsonResponse({'ok': True})
 
 
 # ─── Stream control ───────────────────────────────────────────────────────────

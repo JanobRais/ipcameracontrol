@@ -13,6 +13,8 @@ urlpatterns = [
     # Camera CRUD
     path('api/cameras/', views.cameras_list, name='cameras-list'),
     path('api/cameras/<int:pk>/', views.camera_detail, name='camera-detail'),
+    path('api/cameras/<int:pk>/update/', views.camera_update, name='camera-update'),
+    path('api/cameras/<int:pk>/delete/', views.camera_delete, name='camera-delete'),
 
     # Stream boshqaruv
     path('api/cameras/<int:pk>/start/', views.camera_start, name='camera-start'),

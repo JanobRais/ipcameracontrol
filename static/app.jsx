@@ -519,7 +519,7 @@ function AdminDashboard({ cameras, setCameras, openEditor, openAdd }) {
   };
   const remove = async (id,name) => {
     if (!confirm(`"${name}"ni o'chirishni tasdiqlaysizmi?`)) return;
-    try { await apiFetch(`/api/cameras/${id}/`,{method:'DELETE'}); setCameras(cs=>cs.filter(c=>c.id!==id)); setSelected(s=>{const n=new Set(s);n.delete(id);return n;}); }
+    try { await apiFetch(`/api/cameras/${id}/delete/`,{method:'POST'}); setCameras(cs=>cs.filter(c=>c.id!==id)); setSelected(s=>{const n=new Set(s);n.delete(id);return n;}); }
     catch(e){ alert('Xato: '+e.message); }
   };
 
@@ -556,7 +556,7 @@ function AdminDashboard({ cameras, setCameras, openEditor, openAdd }) {
             <span className="bulk__n">{selected.size} ta tanlandi</span>
             <button className="bulk__btn" onClick={async()=>{for(const id of selected)await startStream(id);setSelected(new Set());}}>Hammasini ishga tushirish</button>
             <button className="bulk__btn" onClick={async()=>{for(const id of selected)await stopStream(id);setSelected(new Set());}}>Hammasini to'xtatish</button>
-            <button className="bulk__btn bulk__btn--danger" onClick={async()=>{if(!confirm(`${selected.size} ta o'chirilsinmi?`))return;for(const id of selected){await apiFetch(`/api/cameras/${id}/`,{method:'DELETE'}).catch(()=>{});setCameras(cs=>cs.filter(c=>c.id!==id));}setSelected(new Set());}}>O'chirish</button>
+            <button className="bulk__btn bulk__btn--danger" onClick={async()=>{if(!confirm(`${selected.size} ta o'chirilsinmi?`))return;for(const id of selected){await apiFetch(`/api/cameras/${id}/delete/`,{method:'POST'}).catch(()=>{});setCameras(cs=>cs.filter(c=>c.id!==id));}setSelected(new Set());}}>O'chirish</button>
           </div>
         )}
       </div>
@@ -667,7 +667,7 @@ function AdminApp() {
   const saveCamera = async form => {
     try {
       if (editing) {
-        const updated = await apiFetch(`/api/cameras/${editing.id}/`,{method:'PUT',body:JSON.stringify(form)});
+        const updated = await apiFetch(`/api/cameras/${editing.id}/update/`,{method:'POST',body:JSON.stringify(form)});
         setCameras(cs=>cs.map(c=>c.id===editing.id?updated:c));
       } else {
         const created = await apiFetch('/api/cameras/',{method:'POST',body:JSON.stringify(form)});
