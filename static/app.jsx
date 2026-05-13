@@ -13,14 +13,15 @@ const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
 // ============ API HELPER ============
 async function apiFetch(url, opts = {}) {
   const res = await fetch(url, {
+    credentials: 'include',
     headers: { 'Content-Type': 'application/json', ...(opts.headers || {}) },
     ...opts,
   });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.error || `HTTP ${res.status}`);
-  }
-  return res.json();
+  const text = await res.text();
+  let data;
+  try { data = JSON.parse(text); } catch { throw new Error(`Server xatosi (${res.status}): HTML qaytdi — serverni qayta ishga tushiring`); }
+  if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+  return data;
 }
 
 // ============ STREAM CANVAS ============
