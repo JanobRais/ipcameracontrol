@@ -5,7 +5,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 SECRET_KEY = os.environ.get('SECRET_KEY', 'camlive-dev-key-change-in-production')
 DEBUG = os.environ.get('DEBUG', 'false').lower() == 'true'
-ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', '*').split(',')
+ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', 'ipcam.unigeo.uz,172.16.29.100,127.0.0.1,localhost').split(',')
 
 INSTALLED_APPS = [
     'django.contrib.contenttypes',
