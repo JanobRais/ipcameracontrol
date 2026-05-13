@@ -1,10 +1,15 @@
 import subprocess
-import os
+import threading
+from collections import deque
 from pathlib import Path
 from django.conf import settings
 
 # {camera_id: subprocess.Popen}
 _processes: dict[int, subprocess.Popen] = {}
+
+# {camera_id: deque of log lines}
+_logs: dict[int, deque] = {}
+LOG_LINES = 100
 
 
 def _streams_dir() -> Path:
@@ -13,12 +18,22 @@ def _streams_dir() -> Path:
     return d
 
 
+def _read_stderr(camera_id: int, proc: subprocess.Popen):
+    """Orqa fonda ffmpeg stderr ni o'qib _logs ga yozadi."""
+    buf = _logs.setdefault(camera_id, deque(maxlen=LOG_LINES))
+    try:
+        for line in proc.stderr:
+            buf.append(line.decode('utf-8', errors='replace').rstrip())
+    except Exception:
+        pass
+
+
 def start_stream(camera) -> tuple[bool, str]:
-    """FFmpeg RTSP → HLS stream boshlash."""
     if is_alive(camera.id):
         return True, "Allaqachon efirda"
 
     m3u8_path = _streams_dir() / f"{camera.stream_slug}.m3u8"
+    _logs[camera.id] = deque(maxlen=LOG_LINES)
 
     cmd = [
         'ffmpeg', '-y',
@@ -39,18 +54,19 @@ def start_stream(camera) -> tuple[bool, str]:
         proc = subprocess.Popen(
             cmd,
             stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
         )
         _processes[camera.id] = proc
+        t = threading.Thread(target=_read_stderr, args=(camera.id, proc), daemon=True)
+        t.start()
         return True, "Stream boshlandi"
     except FileNotFoundError:
-        return False, "ffmpeg topilmadi — PATH'ni tekshiring"
+        return False, "ffmpeg topilmadi — PATH ni tekshiring"
     except Exception as exc:
         return False, str(exc)
 
 
 def stop_stream(camera) -> tuple[bool, str]:
-    """Stream to'xtatish va HLS fayllarini tozalash."""
     proc = _processes.pop(camera.id, None)
     if proc is None:
         return False, "Faol stream topilmadi"
@@ -61,16 +77,18 @@ def stop_stream(camera) -> tuple[bool, str]:
     except subprocess.TimeoutExpired:
         proc.kill()
 
-    # Eski segmentlarni o'chirish
     streams = _streams_dir()
-    slug = camera.stream_slug
-    for f in streams.glob(f"{slug}*"):
+    for f in streams.glob(f"{camera.stream_slug}*"):
         try:
             f.unlink()
         except OSError:
             pass
 
     return True, "Stream to'xtatildi"
+
+
+def get_logs(camera_id: int) -> list[str]:
+    return list(_logs.get(camera_id, []))
 
 
 def is_alive(camera_id: int) -> bool:

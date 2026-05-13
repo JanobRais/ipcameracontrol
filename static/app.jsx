@@ -358,7 +358,7 @@ function CameraModal({ open, onClose, onSave, initial }) {
   useEffect(() => {
     if (open) setForm(initial ? {
       name:initial.name||'', location:initial.location||'',
-      cam_username:initial.cam_username||'', cam_password:'',
+      cam_username:initial.cam_username||'', cam_password:initial.cam_password||'',
       ip:initial.ip||'', port:String(initial.port||554),
       resolution:initial.resolution||'1920x1080', fps:initial.fps||25, status:initial.status||'stopped',
     } : EMPTY_FORM);
@@ -367,7 +367,7 @@ function CameraModal({ open, onClose, onSave, initial }) {
   if (!open) return null;
   const set = (k,v) => setForm(f=>({...f,[k]:v}));
   const isEdit = !!initial;
-  const canSave = form.name && form.ip && form.port && form.cam_username && (isEdit || form.cam_password);
+  const canSave = form.name && form.ip && form.port && form.cam_username;
 
   const handleSave = async () => {
     setSaving(true);
@@ -393,7 +393,7 @@ function CameraModal({ open, onClose, onSave, initial }) {
             <label className="field"><span>IP manzil *</span><input value={form.ip} onChange={e=>set('ip',e.target.value)} placeholder="172.16.39.56"/></label>
             <label className="field"><span>Port *</span><input type="number" value={form.port} onChange={e=>set('port',e.target.value)} placeholder="554" min="1" max="65535"/></label>
             <label className="field"><span>Foydalanuvchi nomi *</span><input value={form.cam_username} onChange={e=>set('cam_username',e.target.value)} placeholder="admin" autoComplete="off"/></label>
-            <label className="field"><span>Parol {isEdit?'(bo\'sh = o\'zgarmaydi)':'*'}</span><input type="password" value={form.cam_password} onChange={e=>set('cam_password',e.target.value)} placeholder="••••••••" autoComplete="new-password"/></label>
+            <label className="field"><span>Parol</span><input value={form.cam_password} onChange={e=>set('cam_password',e.target.value)} placeholder="parol" autoComplete="off"/></label>
             <label className="field"><span>Sifat</span>
               <select value={form.resolution} onChange={e=>set('resolution',e.target.value)}>
                 <option>1920x1080</option><option>1280x720</option><option>854x480</option><option>640x360</option>
@@ -429,10 +429,58 @@ function CameraModal({ open, onClose, onSave, initial }) {
 }
 
 // ── Admin Dashboard ──
+function LogsModal({ camId, camName, onClose }) {
+  const [logs, setLogs] = useState([]);
+  const bottomRef = useRef(null);
+
+  useEffect(() => {
+    const load = () => apiFetch(`/api/cameras/${camId}/logs/`).then(d => setLogs(d.logs)).catch(()=>{});
+    load();
+    const t = setInterval(load, 2000);
+    return () => clearInterval(t);
+  }, [camId]);
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [logs]);
+
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal" style={{maxWidth:'800px', width:'95vw'}} onClick={e=>e.stopPropagation()}>
+        <div className="modal__head">
+          <div><div className="eyebrow">FFmpeg loglari</div><h3>{camName}</h3></div>
+          <button className="icon-btn" onClick={onClose}>
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 6l12 12M18 6L6 18"/></svg>
+          </button>
+        </div>
+        <div style={{
+          background:'#0a0c10', color:'#b0c4b8', fontFamily:'JetBrains Mono,monospace',
+          fontSize:'0.75rem', lineHeight:'1.5', padding:'1rem',
+          height:'420px', overflowY:'auto', borderRadius:'0 0 12px 12px',
+        }}>
+          {logs.length === 0
+            ? <div style={{color:'#666', textAlign:'center', paddingTop:'2rem'}}>Log yo'q — stream ishga tushirilmagan</div>
+            : logs.map((line, i) => (
+                <div key={i} style={{
+                  color: line.includes('Error')||line.includes('error')||line.includes('Failed') ? '#f87171'
+                       : line.includes('warning')||line.includes('Warning') ? '#fbbf24'
+                       : line.includes('frame=')||line.includes('fps=') ? '#86efac'
+                       : '#b0c4b8'
+                }}>{line}</div>
+              ))
+          }
+          <div ref={bottomRef}/>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function AdminDashboard({ cameras, setCameras, openEditor, openAdd }) {
   const [selected, setSelected] = useState(new Set());
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState({});
+  const [logsCamera, setLogsCamera] = useState(null);
 
   const toggle = id => { const n=new Set(selected); n.has(id)?n.delete(id):n.add(id); setSelected(n); };
   const setL = (id,v) => setLoading(l=>({...l,[id]:v}));
@@ -523,6 +571,9 @@ function AdminDashboard({ cameras, setCameras, openEditor, openAdd }) {
                       ? <button className="act act--stop" disabled={!!loading[c.id]} onClick={()=>stopStream(c.id)}><svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="1"/></svg>{loading[c.id]==='stop'?'...':'Stop'}</button>
                       : <button className="act act--start" disabled={!!loading[c.id]} onClick={()=>startStream(c.id)}><svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor"><path d="M6 4l14 8-14 8z"/></svg>{loading[c.id]==='start'?'...':'Start'}</button>
                     }
+                    <button className="act" onClick={()=>setLogsCamera(c)} title="FFmpeg loglari">
+                      <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 6h16M4 10h16M4 14h10"/></svg> Log
+                    </button>
                     <button className="act" onClick={()=>openEditor(c)}><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 20h4l10-10-4-4L4 16zM14 6l4 4"/></svg> Edit</button>
                     <button className="act act--danger" onClick={()=>remove(c.id,c.name)}><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg></button>
                   </div>
@@ -533,6 +584,10 @@ function AdminDashboard({ cameras, setCameras, openEditor, openAdd }) {
         </table>
         {visible.length===0 && <div className="empty empty--inset">Kamera topilmadi.</div>}
       </div>
+
+      {logsCamera && (
+        <LogsModal camId={logsCamera.id} camName={logsCamera.name} onClose={()=>setLogsCamera(null)}/>
+      )}
     </div>
   );
 }

@@ -17,6 +17,7 @@ urlpatterns = [
     # Stream boshqaruv
     path('api/cameras/<int:pk>/start/', views.camera_start, name='camera-start'),
     path('api/cameras/<int:pk>/stop/', views.camera_stop, name='camera-stop'),
+    path('api/cameras/<int:pk>/logs/', views.camera_logs, name='camera-logs'),
 
     # HLS fayllari
     path('hls/<str:filename>', views.serve_hls, name='hls-serve'),

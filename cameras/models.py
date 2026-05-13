@@ -45,4 +45,5 @@ class Camera(models.Model):
             "ip": self.ip,
             "port": self.port,
             "cam_username": self.cam_username,
+            "cam_password": self.cam_password,
         }
