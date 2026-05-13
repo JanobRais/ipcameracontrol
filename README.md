@@ -67,23 +67,7 @@ python manage.py migrate
 
 ---
 
-## 6. Admin foydalanuvchi yaratish
-
-```bash
-python manage.py shell -c "
-from django.contrib.auth import get_user_model
-User = get_user_model()
-if not User.objects.filter(username='admin').exists():
-    User.objects.create_superuser('admin', '', '12345')
-    print('admin:12345 yaratildi')
-else:
-    print('admin allaqachon mavjud')
-"
-```
-
----
-
-## 7. Serverni ishga tushirish
+## 6. Serverni ishga tushirish
 
 ```bash
 python manage.py runserver
@@ -96,11 +80,9 @@ Brauzerda oching:
 | `http://127.0.0.1:8000/` | Jonli efir (hamma uchun) |
 | `http://127.0.0.1:8000/admin/` | Boshqaruv paneli (login kerak) |
 
-**Login:** `admin` / `12345`
-
 ---
 
-## 8. Muhitdan chiqish
+## 7. Muhitdan chiqish
 
 ```bash
 deactivate
