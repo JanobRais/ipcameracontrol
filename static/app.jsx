@@ -487,6 +487,122 @@ function LogsModal({ camId, camName, onClose }) {
   );
 }
 
+// ── Settings Page ──
+function SettingsPage({ currentUser }) {
+  const [users, setUsers] = useState([]);
+  const [newUser, setNewUser] = useState({ username: '', password: '' });
+  const [pwForm, setPwForm] = useState({ old_password: '', new_password: '', confirm: '' });
+  const [userMsg, setUserMsg] = useState('');
+  const [pwMsg, setPwMsg] = useState('');
+  const [userErr, setUserErr] = useState('');
+  const [pwErr, setPwErr] = useState('');
+
+  const loadUsers = () => apiFetch('/api/users/').then(setUsers).catch(()=>{});
+  useEffect(() => { loadUsers(); }, []);
+
+  const handleAddUser = async () => {
+    setUserErr(''); setUserMsg('');
+    if (!newUser.username || !newUser.password) { setUserErr('Login va parol kiritilsin'); return; }
+    try {
+      await apiFetch('/api/users/create/', { method:'POST', body: JSON.stringify(newUser) });
+      setUserMsg('Foydalanuvchi yaratildi');
+      setNewUser({ username:'', password:'' });
+      loadUsers();
+    } catch(e) { setUserErr(e.message); }
+  };
+
+  const handleDeleteUser = async (uid, uname) => {
+    if (!confirm(`"${uname}"ni o'chirishni tasdiqlaysizmi?`)) return;
+    try {
+      await apiFetch(`/api/users/${uid}/delete/`, { method:'POST' });
+      loadUsers();
+    } catch(e) { alert(e.message); }
+  };
+
+  const handleChangePw = async () => {
+    setPwErr(''); setPwMsg('');
+    if (!pwForm.old_password || !pwForm.new_password) { setPwErr('Barcha maydonlarni to\'ldiring'); return; }
+    if (pwForm.new_password !== pwForm.confirm) { setPwErr('Yangi parollar mos kelmaydi'); return; }
+    try {
+      await apiFetch('/api/change-password/', { method:'POST', body: JSON.stringify(pwForm) });
+      setPwMsg('Parol muvaffaqiyatli o\'zgartirildi');
+      setPwForm({ old_password:'', new_password:'', confirm:'' });
+    } catch(e) { setPwErr(e.message); }
+  };
+
+  return (
+    <div className="page">
+      <header className="page-head">
+        <div><div className="eyebrow">Sozlamalar</div><h1 className="page-title">Foydalanuvchilar</h1></div>
+      </header>
+
+      <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'1.5rem', alignItems:'start'}}>
+
+        {/* Parol o'zgartirish */}
+        <div className="table-card" style={{padding:'1.5rem'}}>
+          <h3 style={{marginBottom:'1rem', fontSize:'1rem'}}>Parolni o'zgartirish</h3>
+          <div style={{display:'flex', flexDirection:'column', gap:'0.75rem'}}>
+            <label className="field"><span>Joriy parol</span>
+              <input type="password" value={pwForm.old_password} onChange={e=>setPwForm(f=>({...f,old_password:e.target.value}))} placeholder="••••••••"/>
+            </label>
+            <label className="field"><span>Yangi parol</span>
+              <input type="password" value={pwForm.new_password} onChange={e=>setPwForm(f=>({...f,new_password:e.target.value}))} placeholder="••••••••"/>
+            </label>
+            <label className="field"><span>Yangi parolni takrorlang</span>
+              <input type="password" value={pwForm.confirm} onChange={e=>setPwForm(f=>({...f,confirm:e.target.value}))} placeholder="••••••••"/>
+            </label>
+            {pwErr && <div style={{color:'#dc2626',fontSize:'0.85em'}}>{pwErr}</div>}
+            {pwMsg && <div style={{color:'#16a34a',fontSize:'0.85em'}}>{pwMsg}</div>}
+            <button className="primary-btn" onClick={handleChangePw}>Saqlash</button>
+          </div>
+        </div>
+
+        {/* Yangi foydalanuvchi */}
+        <div className="table-card" style={{padding:'1.5rem'}}>
+          <h3 style={{marginBottom:'1rem', fontSize:'1rem'}}>Yangi foydalanuvchi qo'shish</h3>
+          <div style={{display:'flex', flexDirection:'column', gap:'0.75rem'}}>
+            <label className="field"><span>Login</span>
+              <input value={newUser.username} onChange={e=>setNewUser(f=>({...f,username:e.target.value}))} placeholder="username" autoComplete="off"/>
+            </label>
+            <label className="field"><span>Parol</span>
+              <input type="password" value={newUser.password} onChange={e=>setNewUser(f=>({...f,password:e.target.value}))} placeholder="••••••••" autoComplete="off"/>
+            </label>
+            {userErr && <div style={{color:'#dc2626',fontSize:'0.85em'}}>{userErr}</div>}
+            {userMsg && <div style={{color:'#16a34a',fontSize:'0.85em'}}>{userMsg}</div>}
+            <button className="primary-btn" onClick={handleAddUser}>Qo'shish</button>
+          </div>
+        </div>
+      </div>
+
+      {/* Foydalanuvchilar ro'yxati */}
+      <div className="table-card" style={{marginTop:'1.5rem'}}>
+        <table className="table">
+          <thead>
+            <tr><th>#</th><th>Login</th><th>Rol</th><th style={{width:80}}>Amal</th></tr>
+          </thead>
+          <tbody>
+            {users.map(u=>(
+              <tr key={u.id}>
+                <td>{u.id}</td>
+                <td><strong>{u.username}</strong>{u.username===currentUser && <span className="osd-chip" style={{marginLeft:8}}>siz</span>}</td>
+                <td>{u.is_superuser ? <span style={{color:'var(--accent)'}}>Superadmin</span> : 'Admin'}</td>
+                <td>
+                  {u.username !== currentUser && (
+                    <button className="act act--danger" onClick={()=>handleDeleteUser(u.id, u.username)}>
+                      <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg>
+                    </button>
+                  )}
+                </td>
+              </tr>
+            ))}
+            {users.length===0 && <tr><td colSpan="4" style={{textAlign:'center',color:'var(--text-2)',padding:'1.5rem'}}>Yuklanmoqda...</td></tr>}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 function AdminDashboard({ cameras, setCameras, openEditor, openAdd }) {
   const [selected, setSelected] = useState(new Set());
   const [query, setQuery] = useState('');
@@ -636,7 +752,7 @@ function AdminApp() {
   const [authChecked, setAuthChecked] = useState(false);
   const [adminView, setAdminView] = useState(() => {
     const h = window.location.hash.replace('#', '');
-    return (h === 'cameras' || h === 'viewer') ? h : 'cameras';
+    return (['cameras', 'viewer', 'settings'].includes(h)) ? h : 'cameras';
   });
   const [cameras, setCameras] = useState([]);
   const [loadingCams, setLoadingCams] = useState(true);
@@ -696,8 +812,9 @@ function AdminApp() {
         </div>
         <nav className="nav">
           {[
-            { id:'cameras', label:'Kameralar', badge:liveCount, icon:<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8"><rect x="3" y="6" width="13" height="12" rx="2"/><path d="M16 10l5-3v10l-5-3"/></svg> },
-            { id:'viewer',  label:'Jonli efir', icon:<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg> },
+            { id:'cameras',  label:'Kameralar',  badge:liveCount, icon:<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8"><rect x="3" y="6" width="13" height="12" rx="2"/><path d="M16 10l5-3v10l-5-3"/></svg> },
+            { id:'viewer',   label:'Jonli efir', icon:<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg> },
+            { id:'settings', label:'Sozlamalar', icon:<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg> },
           ].map(item=>(
             <button key={item.id} className={'nav__item'+(adminView===item.id?' is-on':'')} onClick={()=>{ setAdminView(item.id); window.location.hash=item.id; }} title={item.label}>
               <span className="nav__icon">{item.icon}</span>
@@ -734,6 +851,8 @@ function AdminApp() {
           ) : (
             adminView==='cameras'
               ? <AdminDashboard cameras={cameras} setCameras={setCameras} openEditor={c=>{setEditing(c);setModalOpen(true);}} openAdd={()=>{setEditing(null);setModalOpen(true);}}/>
+              : adminView==='settings'
+              ? <SettingsPage currentUser={currentUser}/>
               : <PublicViewerEmbed cameras={cameras}/>
           )}
         </div>

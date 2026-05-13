@@ -2,7 +2,8 @@ import json
 from pathlib import Path
 
 from django.conf import settings
-from django.contrib.auth import authenticate, login, logout
+from django.contrib.auth import authenticate, login, logout, update_session_auth_hash
+from django.contrib.auth import get_user_model
 from django.http import FileResponse, Http404, JsonResponse
 from django.shortcuts import render
 from django.views.decorators.csrf import csrf_exempt
@@ -10,6 +11,8 @@ from django.views.decorators.http import require_http_methods
 
 from .models import Camera
 from . import stream_manager
+
+User = get_user_model()
 
 
 def index(request):
@@ -259,6 +262,80 @@ def camera_logs(request, pk):
         return err
     logs = stream_manager.get_logs(pk)
     return JsonResponse({'logs': logs})
+
+
+# ─── User management ─────────────────────────────────────────────────────────
+
+@csrf_exempt
+@require_http_methods(['GET'])
+def users_list(request):
+    err = _require_auth(request)
+    if err:
+        return err
+    users = User.objects.all().order_by('id')
+    data = [{'id': u.id, 'username': u.username, 'is_superuser': u.is_superuser} for u in users]
+    return JsonResponse(data, safe=False)
+
+
+@csrf_exempt
+@require_http_methods(['POST'])
+def user_create(request):
+    err = _require_auth(request)
+    if err:
+        return err
+    try:
+        body = json.loads(request.body)
+        username = body.get('username', '').strip()
+        password = body.get('password', '')
+        if not username or not password:
+            return JsonResponse({'error': 'Login va parol talab qilinadi'}, status=400)
+        if User.objects.filter(username=username).exists():
+            return JsonResponse({'error': 'Bu login allaqachon mavjud'}, status=400)
+        u = User.objects.create_user(username=username, password=password)
+        return JsonResponse({'id': u.id, 'username': u.username, 'is_superuser': u.is_superuser}, status=201)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@csrf_exempt
+@require_http_methods(['POST'])
+def user_delete(request, uid):
+    err = _require_auth(request)
+    if err:
+        return err
+    if request.user.id == uid:
+        return JsonResponse({'error': "O'z akkauntingizni o'chira olmaysiz"}, status=400)
+    try:
+        u = User.objects.get(pk=uid)
+        u.delete()
+        return JsonResponse({'ok': True})
+    except User.DoesNotExist:
+        return JsonResponse({'error': 'Topilmadi'}, status=404)
+
+
+@csrf_exempt
+@require_http_methods(['POST'])
+def change_password(request):
+    err = _require_auth(request)
+    if err:
+        return err
+    try:
+        body = json.loads(request.body)
+        old_pw = body.get('old_password', '')
+        new_pw = body.get('new_password', '')
+        if not old_pw or not new_pw:
+            return JsonResponse({'error': 'Eski va yangi parol talab qilinadi'}, status=400)
+        if len(new_pw) < 4:
+            return JsonResponse({'error': 'Parol kamida 4 ta belgidan iborat bo\'lsin'}, status=400)
+        user = authenticate(request, username=request.user.username, password=old_pw)
+        if user is None:
+            return JsonResponse({'error': 'Eski parol noto\'g\'ri'}, status=400)
+        user.set_password(new_pw)
+        user.save()
+        update_session_auth_hash(request, user)
+        return JsonResponse({'ok': True})
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
 
 
 # ─── HLS file serving ─────────────────────────────────────────────────────────
