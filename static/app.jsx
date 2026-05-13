@@ -132,7 +132,7 @@ function HlsPlayer({ streamUrl }) {
   }, [streamUrl]);
   return (
     <div className="stream-wrap">
-      <video ref={videoRef} className="stream-canvas" autoPlay muted playsInline style={{objectFit:'cover',background:'#000'}} />
+      <video ref={videoRef} className="stream-canvas" autoPlay playsInline style={{objectFit:'cover',background:'#000'}} />
     </div>
   );
 }
