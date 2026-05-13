@@ -12,12 +12,15 @@ const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
 
 // ============ API HELPER ============
 async function apiFetch(url, opts = {}) {
+  console.log('[apiFetch]', opts.method || 'GET', url);
   const res = await fetch(url, {
     credentials: 'include',
     headers: { 'Content-Type': 'application/json', ...(opts.headers || {}) },
     ...opts,
   });
+  console.log('[apiFetch] response:', res.status, res.url);
   const text = await res.text();
+  console.log('[apiFetch] body preview:', text.slice(0, 120));
   let data;
   try { data = JSON.parse(text); } catch { throw new Error(`Server xatosi (${res.status}): HTML qaytdi — serverni qayta ishga tushiring`); }
   if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
