@@ -31,12 +31,11 @@ class Camera(models.Model):
         safe = re.sub(r'[^\w]', '_', self.name)
         return f"{safe}_{self.id}"
 
-    def to_dict(self, is_live=False):
-        return {
+    def to_dict(self, is_live=False, private=False):
+        data = {
             "id": self.id,
             "name": self.name,
             "location": self.location,
-            "rtsp": f"rtsp://{self.ip}:{self.port}",
             "resolution": self.resolution,
             "fps": self.fps,
             "audio": self.audio,
@@ -44,8 +43,13 @@ class Camera(models.Model):
             "bitrate": 0,
             "uptime": "—",
             "stream_url": f"/hls/{self.stream_slug}.m3u8",
-            "ip": self.ip,
-            "port": self.port,
-            "cam_username": self.cam_username,
-            "cam_password": self.cam_password,
         }
+        if private:
+            data.update({
+                "rtsp": f"rtsp://{self.ip}:{self.port}",
+                "ip": self.ip,
+                "port": self.port,
+                "cam_username": self.cam_username,
+                "cam_password": self.cam_password,
+            })
+        return data

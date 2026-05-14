@@ -61,7 +61,8 @@ def cameras_list(request):
     try:
         if request.method == 'GET':
             alive = stream_manager.alive_ids()
-            data = [c.to_dict(is_live=c.id in alive) for c in Camera.objects.all()]
+            priv = request.user.is_authenticated
+            data = [c.to_dict(is_live=c.id in alive, private=priv) for c in Camera.objects.all()]
             return JsonResponse(data, safe=False)
 
         err = _require_auth(request)
@@ -107,7 +108,7 @@ def camera_detail(request, pk):
             return JsonResponse({'error': 'Topilmadi'}, status=404)
 
         if request.method == 'GET':
-            return JsonResponse(cam.to_dict(is_live=stream_manager.is_alive(cam.id)))
+            return JsonResponse(cam.to_dict(is_live=stream_manager.is_alive(cam.id), private=request.user.is_authenticated))
 
         err = _require_auth(request)
         if err:
